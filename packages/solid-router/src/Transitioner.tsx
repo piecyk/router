@@ -62,7 +62,10 @@ export function Transitioner() {
   // Subscribe to location changes
   // and try to load the new location
   Solid.onMount(() => {
-    Solid.onCleanup(router.history.subscribe(router.load))
+    // A child router renders a fixed location; its parent owns the history.
+    if (!router.options.parent) {
+      Solid.onCleanup(router.history.subscribe(router.load))
+    }
 
     const nextLocation = router.buildLocation({
       to: router.latestLocation.pathname,
@@ -77,8 +80,9 @@ export function Transitioner() {
     // Compare publicHref (browser-facing URL) consistently with server
     // canonicalization.
     if (
+      !router.options.parent &&
       trimPathRight(router.latestLocation.publicHref) !==
-      trimPathRight(nextLocation.publicHref)
+        trimPathRight(nextLocation.publicHref)
     ) {
       router.commitLocation({
         ...nextLocation,

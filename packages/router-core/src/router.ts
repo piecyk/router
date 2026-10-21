@@ -204,6 +204,17 @@ export interface RouterOptions<
    */
   history?: TRouterHistory
   /**
+   * Makes this a child router: it renders `location` inside the parent's document.
+   *
+   * A child uses the parent's history (navigation and blockers go to the parent),
+   * never reads or writes the URL itself, and installs no global listeners.
+   */
+  parent?: AnyRouter
+  /**
+   * The location a child router renders. Used only with `parent`; change it with `router.setLocation`.
+   */
+  location?: string | HistoryLocation
+  /**
    * A function that will be used to stringify search params when generating links.
    *
    * @default defaultStringifySearch
@@ -1232,7 +1243,10 @@ export class RouterCore<
         options.protocolAllowlist ?? DEFAULT_PROTOCOL_ALLOWLIST,
     })
 
-    if (!(isServer ?? typeof document === 'undefined')) {
+    if (
+      !this.options.parent &&
+      !(isServer ?? typeof document === 'undefined')
+    ) {
       self.__TSR_ROUTER__ = this
     }
   }
@@ -1276,7 +1290,13 @@ export class RouterCore<
 
     this.protocolAllowlist = new Set(this.options.protocolAllowlist)
 
-    if (
+    const parent = this.options.parent
+    if (parent) {
+      this.history = parent.history as TRouterHistory
+      if (typeof this.options.location === 'string') {
+        this.options.location = parseHref(this.options.location, undefined)
+      }
+    } else if (
       !this.history ||
       (this.options.history && this.options.history !== this.history)
     ) {
@@ -1368,7 +1388,7 @@ export class RouterCore<
         this.batch = config.batch
         this.stores = createRouterStores(this.latestLocation, config)
 
-        if (!(isServer ?? this.isServer)) {
+        if (!(isServer ?? this.isServer) && !parent) {
           setupScrollRestoration(this)
         }
       }
@@ -1384,9 +1404,20 @@ export class RouterCore<
 
   updateLatestLocation = () => {
     this.latestLocation = this.parseLocation(
-      this.history.location,
+      this.options.parent
+        ? (this.options.location as HistoryLocation)
+        : this.history.location,
       this.latestLocation,
     )
+  }
+
+  /**
+   * Child routers only: render another location and load it.
+   */
+  setLocation = (location: string | HistoryLocation) => {
+    this.options.location =
+      typeof location === 'string' ? parseHref(location, undefined) : location
+    return this.load()
   }
 
   buildRouteTree = (): RouteTreeCaches<TRouteTree> => {
@@ -2228,6 +2259,13 @@ export class RouterCore<
     ignoreBlocker,
     ...next
   }) => {
+    if (this.options.parent) {
+      return this.options.parent.commitLocation({
+        viewTransition,
+        ignoreBlocker,
+        ...next,
+      })
+    }
     if (isServer ?? this.isServer) {
       return
     }

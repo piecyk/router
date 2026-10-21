@@ -38,7 +38,10 @@ export function Transitioner({
 
   // Subscribe before canonicalizing so the initial URL has exactly one load.
   useLayoutEffect(() => {
-    const unsub = router.history.subscribe(router.load)
+    // A child router renders a fixed location; its parent owns the history.
+    const unsub = router.options.parent
+      ? () => {}
+      : router.history.subscribe(router.load)
 
     if (mounted?.current) {
       return unsub
@@ -62,8 +65,9 @@ export function Transitioner({
     // Compare publicHref (browser-facing URL) consistently with server
     // canonicalization.
     if (
+      !router.options.parent &&
       trimPathRight(location.publicHref) !==
-      trimPathRight(nextLocation.publicHref)
+        trimPathRight(nextLocation.publicHref)
     ) {
       router.commitLocation({
         ...nextLocation,

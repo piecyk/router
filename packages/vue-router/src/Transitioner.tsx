@@ -19,7 +19,10 @@ export function useTransitionerSetup() {
   }
 
   Vue.onMounted(() => {
-    Vue.onUnmounted(router.history.subscribe(router.load))
+    // A child router renders a fixed location; its parent owns the history.
+    if (!router.options.parent) {
+      Vue.onUnmounted(router.history.subscribe(router.load))
+    }
 
     const nextLocation = router.buildLocation({
       to: router.latestLocation.pathname,
@@ -31,8 +34,9 @@ export function useTransitionerSetup() {
     })
 
     if (
+      !router.options.parent &&
       trimPathRight(router.latestLocation.publicHref) !==
-      trimPathRight(nextLocation.publicHref)
+        trimPathRight(nextLocation.publicHref)
     ) {
       router.commitLocation({
         ...nextLocation,
